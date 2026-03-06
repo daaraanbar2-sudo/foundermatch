@@ -17,6 +17,7 @@ const F = { display:"'Bebas Neue',sans-serif", serif:"'Instrument Serif',serif",
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 const IS_LIVE = !!(SUPABASE_URL && SUPABASE_KEY);
+console.log("IS_LIVE:", IS_LIVE, "URL:", SUPABASE_URL);
 const _sb = IS_LIVE ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth:{ persistSession:true } }) : null;
 
 /* ══════════════════════════════════════
