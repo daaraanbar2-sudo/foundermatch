@@ -17,8 +17,7 @@ const F = { display:"'Bebas Neue',sans-serif", serif:"'Instrument Serif',serif",
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 const IS_LIVE = !!(SUPABASE_URL && SUPABASE_KEY);
-console.log("IS_LIVE:", IS_LIVE, "URL:", SUPABASE_URL);
-const _sb = IS_LIVE ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth:{ persistSession:true } }) : null;
+const _sb = IS_LIVE ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth:{ persistSession:true, storageKey:"fm-auth" } }) : null;
 
 /* ══════════════════════════════════════
    MATCH ALGORITHM (mirrors lib/supabase.js)
@@ -513,7 +512,7 @@ function SignupScreen({ setScreen }) {
    LOGIN
 ══════════════════════════════════════ */
 function LoginScreen({ setScreen }) {
-  const { api, setUser, setScreen: setSc } = useAuth();
+  const { setUser, setIsPaid } = useAuth();
   const [vals, setVals] = useState({ email:"", pass:"" });
   const [reset, setReset] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -523,22 +522,18 @@ function LoginScreen({ setScreen }) {
   async function doLogin() {
     setLoading(true); setErr("");
     try {
-      console.log("1. Starting login...");
+      if (!_sb) throw new Error("Not connected to database");
       const { data, error } = await _sb.auth.signInWithPassword({ email:vals.email, password:vals.pass });
-      console.log("2. Auth result:", data?.user?.id, error);
       if (error) throw new Error(error.message);
       if (data?.user) {
-        console.log("3. Fetching profile...");
-        const { data:profile, error:pe } = await _sb.from("profiles").select("*").eq("id", data.user.id).single();
-        console.log("4. Profile result:", profile, pe);
-        const { data:sk } = await _sb.from("profile_skills").select("skills(name)").eq("profile_id", data.user.id);
+        const { data:profile } = await _sb.from("profiles").select("*").eq("id", data.user.id).single();
+        const { data:sk }  = await _sb.from("profile_skills").select("skills(name)").eq("profile_id", data.user.id);
         const { data:inr } = await _sb.from("profile_interests").select("interests(name)").eq("profile_id", data.user.id);
-        setUser({ ...profile, skills:(sk||[]).map(s=>s.skills.name), interests:(inr||[]).map(i=>i.interests.name) });
+        setUser({ ...(profile||{}), skills:(sk||[]).map(s=>s.skills?.name).filter(Boolean), interests:(inr||[]).map(i=>i.interests?.name).filter(Boolean) });
         setIsPaid(profile?.subscription_status === "plus");
-        console.log("5. Setting screen to home...");
-        setScreen("home");
+        setScreen(profile?.onboarding_done ? "home" : "questionnaire");
       }
-    } catch(e) { console.log("ERROR:", e); setErr(e.message||"Invalid credentials"); }
+    } catch(e) { setErr(e.message||"Invalid credentials"); }
     finally { setLoading(false); }
   }
 
@@ -1806,38 +1801,27 @@ export default function FounderMatch() {
   // ── Boot: check for existing session ────────────────────
   useEffect(()=>{
     async function boot() {
-  if (!IS_LIVE) {
-    setUser({ ...DEMO_USER });
-    setScreen("landing");
-    return;
-  }
-  const timeout = setTimeout(() => setScreen("landing"), 4000);
-  try {
-    const { data:{ session } } = await _sb.auth.getSession();
-    if (session?.user) {
-      const { data, error } = await _sb.from("profiles").select("*").eq("id", session.user.id).single();
-      clearTimeout(timeout);
-      if (error || !data) { setScreen("landing"); return; }
-      // load skills and interests separately
-      const { data:sk } = await _sb.from("profile_skills").select("skills(name)").eq("profile_id", session.user.id);
-      const { data:inr } = await _sb.from("profile_interests").select("interests(name)").eq("profile_id", session.user.id);
-      setUser({
-        ...data,
-        skills: (sk||[]).map(s=>s.skills.name),
-        interests: (inr||[]).map(i=>i.interests.name),
-      });
-      setIsPaid(data.subscription_status === "plus");
-      setScreen(data.onboarding_done ? "home" : "questionnaire");
-    } else {
-      clearTimeout(timeout);
-      setScreen("landing");
+      if (!IS_LIVE) {
+        // Demo mode
+        setUser({ ...DEMO_USER });
+        setScreen("landing");
+        return;
+      }
+      try {
+        const { data:{ session } } = await _sb.auth.getSession();
+        if (session?.user) {
+          const profile = await api.profiles.get(session.user.id);
+          setUser(profile);
+          setIsPaid(profile.subscription_status === "plus");
+          setScreen(profile.onboarding_done ? "home" : "questionnaire");
+        } else {
+          setScreen("landing");
+        }
+      } catch(e) {
+        console.error("Boot error:", e);
+        setScreen("landing");
+      }
     }
-  } catch(e) {
-    clearTimeout(timeout);
-    console.error("Boot error:", e);
-    setScreen("landing");
-  }
-}
     boot();
   }, []);
 
