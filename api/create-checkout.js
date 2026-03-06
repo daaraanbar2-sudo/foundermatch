@@ -19,7 +19,7 @@ export default async function handler(req, res) {
       payment_method_types: ["card"],
       customer_email: email,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${process.env.VITE_APP_URL || "https://foundermatch-xn17.vercel.app"}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `https://foundermatch-xn17.vercel.app?checkout=success`,
       cancel_url:  `${process.env.VITE_APP_URL || "https://foundermatch-xn17.vercel.app"}?checkout=cancelled`,
       metadata: { userId },
       subscription_data: {

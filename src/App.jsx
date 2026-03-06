@@ -2050,9 +2050,13 @@ export default function FounderMatch() {
     const hardTimeout = setTimeout(() => setScreen(s => s === "loading" ? "landing" : s), 4000);
 
     async function boot() {
-      // Check for Stripe checkout success
       const checkoutParam = new URLSearchParams(window.location.search).get("checkout");
-      
+      try { localStorage.removeItem("fm-auth"); } catch(e) {}
+      if (checkoutParam === "success") {
+        setScreen("landing");
+        return;
+      }
+      try { localStorage.removeItem("fm-auth"); } catch(e) {}
       // Only clear if token is expired
       try {
         const stored = localStorage.getItem("fm-auth");
