@@ -14,10 +14,10 @@ const F = { display:"'Bebas Neue',sans-serif", serif:"'Instrument Serif',serif",
 /* ══════════════════════════════════════
    SUPABASE CLIENT
 ══════════════════════════════════════ */
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
-const IS_LIVE = !!(SUPABASE_URL && SUPABASE_KEY);
-const _sb = IS_LIVE ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth:{ persistSession:true, storageKey:"fm-auth" } }) : null;
+const SUPABASE_URL = "https://vepqolhwtjdyyhznhfyi.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlcHFvbGh3dGpkeXloem5oZnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NDI2NjMsImV4cCI6MjA4ODMxODY2M30.ncZpsym86t55Io2QNq087KsSC_U4a9vCk1PJCLnalb4";
+const IS_LIVE = true;
+const _sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth:{ persistSession:true, storageKey:"fm-auth" } });
 
 /* ══════════════════════════════════════
    MATCH ALGORITHM (mirrors lib/supabase.js)
@@ -2046,18 +2046,17 @@ export default function FounderMatch() {
 
   // ── Boot: check for existing session ────────────────────
   useEffect(()=>{
+    // Hard timeout — always escape loading screen after 4 seconds
+    const hardTimeout = setTimeout(() => setScreen(s => s === "loading" ? "landing" : s), 4000);
+
     async function boot() {
       if (!IS_LIVE) {
-        // Demo mode
         setUser({ ...DEMO_USER });
         setScreen("landing");
+        clearTimeout(hardTimeout);
         return;
       }
       try {
-        // Safety timeout — never stay stuck on loading
-        const timeout = setTimeout(() => setScreen("landing"), 5000);
-
-        // Check for Stripe checkout success
         const params = new URLSearchParams(window.location.search);
         const checkoutStatus = params.get("checkout");
         if (checkoutStatus === "success") {
@@ -2065,7 +2064,7 @@ export default function FounderMatch() {
         }
 
         const { data:{ session } } = await _sb.auth.getSession();
-        clearTimeout(timeout);
+        clearTimeout(hardTimeout);
         if (session?.user) {
           const { data:profile } = await _sb.from("profiles").select("*").eq("id", session.user.id).single();
           const { data:sk }  = await _sb.from("profile_skills").select("skills(name)").eq("profile_id", session.user.id);
@@ -2080,10 +2079,10 @@ export default function FounderMatch() {
             setScreen(profile?.onboarding_done ? "home" : "questionnaire");
           }
         } else {
-          clearTimeout(timeout);
           setScreen("landing");
         }
       } catch(e) {
+        clearTimeout(hardTimeout);
         console.error("Boot error:", e);
         setScreen("landing");
       }
