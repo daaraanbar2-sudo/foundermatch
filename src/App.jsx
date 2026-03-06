@@ -526,10 +526,16 @@ function LoginScreen({ setScreen }) {
       const { data, error } = await _sb.auth.signInWithPassword({ email:vals.email, password:vals.pass });
       if (error) throw new Error(error.message);
       if (data?.user) {
-        const { data:profile } = await _sb.from("profiles").select("*").eq("id", data.user.id).single();
-        const { data:sk }  = await _sb.from("profile_skills").select("skills(name)").eq("profile_id", data.user.id);
-        const { data:inr } = await _sb.from("profile_interests").select("interests(name)").eq("profile_id", data.user.id);
-        setUser({ ...(profile||{}), skills:(sk||[]).map(s=>s.skills?.name).filter(Boolean), interests:(inr||[]).map(i=>i.interests?.name).filter(Boolean) });
+        const uid = data.user.id;
+        const [profRes, skRes, inrRes] = await Promise.all([
+          _sb.from("profiles").select("*").eq("id", uid).single(),
+          _sb.from("profile_skills").select("skills(name)").eq("profile_id", uid),
+          _sb.from("profile_interests").select("interests(name)").eq("profile_id", uid),
+        ]);
+        const profile = profRes.data || {};
+        const skills  = (skRes.data||[]).map(s=>s.skills?.name).filter(Boolean);
+        const interests = (inrRes.data||[]).map(i=>i.interests?.name).filter(Boolean);
+        setUser({ ...profile, skills, interests });
         setIsPaid(profile?.subscription_status === "plus");
         setScreen(profile?.onboarding_done ? "home" : "questionnaire");
       }
