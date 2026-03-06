@@ -523,17 +523,22 @@ function LoginScreen({ setScreen }) {
   async function doLogin() {
     setLoading(true); setErr("");
     try {
+      console.log("1. Starting login...");
       const { data, error } = await _sb.auth.signInWithPassword({ email:vals.email, password:vals.pass });
+      console.log("2. Auth result:", data?.user?.id, error);
       if (error) throw new Error(error.message);
       if (data?.user) {
-        const { data:profile } = await _sb.from("profiles").select("*").eq("id", data.user.id).single();
+        console.log("3. Fetching profile...");
+        const { data:profile, error:pe } = await _sb.from("profiles").select("*").eq("id", data.user.id).single();
+        console.log("4. Profile result:", profile, pe);
         const { data:sk } = await _sb.from("profile_skills").select("skills(name)").eq("profile_id", data.user.id);
         const { data:inr } = await _sb.from("profile_interests").select("interests(name)").eq("profile_id", data.user.id);
         setUser({ ...profile, skills:(sk||[]).map(s=>s.skills.name), interests:(inr||[]).map(i=>i.interests.name) });
         setIsPaid(profile?.subscription_status === "plus");
+        console.log("5. Setting screen to home...");
         setScreen("home");
       }
-    } catch(e) { setErr(e.message||"Invalid credentials"); }
+    } catch(e) { console.log("ERROR:", e); setErr(e.message||"Invalid credentials"); }
     finally { setLoading(false); }
   }
 
