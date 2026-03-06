@@ -523,14 +523,15 @@ function LoginScreen({ setScreen }) {
   async function doLogin() {
     setLoading(true); setErr("");
     try {
-      const data = await api.auth.signIn({ email:vals.email, password:vals.pass });
+      const { data, error } = await _sb.auth.signInWithPassword({ email:vals.email, password:vals.pass });
+      if (error) throw new Error(error.message);
       if (data?.user) {
         const { data:profile } = await _sb.from("profiles").select("*").eq("id", data.user.id).single();
         const { data:sk } = await _sb.from("profile_skills").select("skills(name)").eq("profile_id", data.user.id);
         const { data:inr } = await _sb.from("profile_interests").select("interests(name)").eq("profile_id", data.user.id);
         setUser({ ...profile, skills:(sk||[]).map(s=>s.skills.name), interests:(inr||[]).map(i=>i.interests.name) });
-        setIsPaid(profile.subscription_status === "plus");
-        setScreen(profile.onboarding_done ? "home" : "questionnaire");
+        setIsPaid(profile?.subscription_status === "plus");
+        setScreen("home");
       }
     } catch(e) { setErr(e.message||"Invalid credentials"); }
     finally { setLoading(false); }
