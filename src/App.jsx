@@ -1582,8 +1582,8 @@ function SubscriptionScreen({ setScreen }) {
     setLoading(plan); setErr("");
     try {
       const priceId = plan === "monthly"
-        ? import.meta.env.VITE_STRIPE_MONTHLY_PRICE_ID
-        : import.meta.env.VITE_STRIPE_ANNUAL_PRICE_ID;
+  ? "price_1T7xyzCZcp9PMROkiAPaWfhA"
+  : "price_1T7y18CZcp9PMROksopEGtUU";
       const res  = await fetch("/api/create-checkout", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
