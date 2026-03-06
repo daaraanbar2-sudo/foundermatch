@@ -2050,12 +2050,8 @@ export default function FounderMatch() {
     const hardTimeout = setTimeout(() => setScreen(s => s === "loading" ? "landing" : s), 4000);
 
     async function boot() {
-      if (!IS_LIVE) {
-        setUser({ ...DEMO_USER });
-        setScreen("landing");
-        clearTimeout(hardTimeout);
-        return;
-      }
+      // Clear any invalid auth tokens before starting
+       try { localStorage.removeItem("fm-auth"); } catch(e) {}
       try {
         const params = new URLSearchParams(window.location.search);
         const checkoutStatus = params.get("checkout");
