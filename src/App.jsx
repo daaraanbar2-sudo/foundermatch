@@ -2051,7 +2051,10 @@ export default function FounderMatch() {
 
     async function boot() {
       // Clear any invalid auth tokens before starting
-       try { localStorage.removeItem("fm-auth"); } catch(e) {}
+       const checkoutParam = new URLSearchParams(window.location.search).get("checkout");
+      if (checkoutParam !== "success") {
+        try { localStorage.removeItem("fm-auth"); } catch(e) {}
+      }
       try {
         const params = new URLSearchParams(window.location.search);
         const checkoutStatus = params.get("checkout");
