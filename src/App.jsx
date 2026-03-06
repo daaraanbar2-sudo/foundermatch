@@ -1760,15 +1760,23 @@ function SettingsScreen({ setScreen }) {
               <Toggle on={privacy[n.k]} onClick={()=>setPrivacy(p=>({...p,[n.k]:!p[n.k]}))} />
             </div>
           ))}
-          <Row label="Blocked Users" sub="0 blocked" onClick={()=>{}} />
-          <Row label="Download My Data" sub="Export your FounderMatch data" onClick={()=>{}} />
+          <Row label="Blocked Users" sub="0 blocked" onClick={()=>setScreen("blockedUsers")} />
+          <Row label="Download My Data" sub="Export your FounderMatch data" onClick={()=>{
+            if (!user) return;
+            const data = JSON.stringify({ profile: user, exportedAt: new Date().toISOString() }, null, 2);
+            const blob = new Blob([data], { type:"application/json" });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement("a");
+            a.href = url; a.download = "foundermatch-data.json"; a.click();
+            URL.revokeObjectURL(url);
+          }} />
         </Section>
 
         <Section title="Support">
-          <Row label="Help Center" onClick={()=>{}} />
-          <Row label="Send Feedback" onClick={()=>{}} />
-          <Row label="Terms of Service" onClick={()=>{}} />
-          <Row label="Privacy Policy" onClick={()=>{}} />
+          <Row label="Help Center"      onClick={()=>setScreen("helpCenter")}   />
+          <Row label="Send Feedback"    onClick={()=>setScreen("sendFeedback")} />
+          <Row label="Terms of Service" onClick={()=>setScreen("terms")}        />
+          <Row label="Privacy Policy"   onClick={()=>setScreen("privacy")}      />
           <div style={{ padding:"14px 18px", background:T.card, border:`1px solid ${T.border}` }}>
             <div style={{ fontSize:10, color:"#444", fontFamily:F.body, textAlign:"center" }}>FounderMatch v1.0.0 · Built with ♥</div>
           </div>
@@ -1779,6 +1787,200 @@ function SettingsScreen({ setScreen }) {
           <Row label="Deactivate Account" sub="Temporarily hide your profile" onClick={()=>{}} danger />
           <Row label="Delete Account" sub="Permanently delete all data" onClick={()=>{}} danger />
         </Section>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   BLOCKED USERS
+══════════════════════════════════════ */
+function BlockedUsersScreen({ setScreen }) {
+  return (
+    <div style={{ flex:1, overflowY:"auto", background:T.black }}>
+      <div style={{ background:T.offBlack, padding:"52px 28px 24px", borderBottom:`1px solid ${T.border}` }}>
+        <button onClick={()=>setScreen("settings")} style={{ background:"none", border:"none", color:T.muted, fontSize:11, cursor:"pointer", marginBottom:14, padding:0, fontFamily:F.body, letterSpacing:"0.08em" }}>← SETTINGS</button>
+        <div style={{ fontFamily:F.display, fontSize:34, color:T.white, lineHeight:0.92 }}>BLOCKED</div>
+        <div style={{ fontFamily:F.serif, fontSize:36, fontStyle:"italic", color:T.accent }}>users.</div>
+      </div>
+      <div style={{ padding:"28px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:200 }}>
+        <div style={{ fontFamily:F.display, fontSize:18, color:T.border, letterSpacing:"0.04em", marginBottom:8 }}>NO BLOCKED USERS</div>
+        <div style={{ fontSize:12, color:T.muted, fontFamily:F.body, textAlign:"center", lineHeight:1.6 }}>Users you block won't be able to see your profile or send you messages.</div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   HELP CENTER
+══════════════════════════════════════ */
+function HelpCenterScreen({ setScreen }) {
+  const [open, setOpen] = useState(null);
+  const faqs = [
+    { q:"How does matching work?", a:"FounderMatch uses a 4-factor algorithm: 40% shared startup interests, 30% complementary roles, 20% shared skills, and 10% timezone proximity. The higher the score, the better the fit." },
+    { q:"What's the difference between Free and Plus?", a:"Free lets you browse profiles, send 3 connection requests per day, and message connections. Plus unlocks full profile bios, match scores, unlimited connections, the full idea marketplace, and who viewed your profile." },
+    { q:"How do I connect with a founder?", a:"Browse founders in the Discover tab, tap on a profile, and hit 'Send Connection'. If they accept, you can start messaging." },
+    { q:"Can I edit my profile after signing up?", a:"Yes — go to Profile → Edit Profile to update your bio, skills, interests, location, timezone, and what you're looking for." },
+    { q:"How do I post an idea to the marketplace?", a:"Upgrade to Plus, then tap '+ Post Idea' in the Marketplace tab. You can set a title, description, category, stage, and what kind of cofounder you're looking for." },
+    { q:"How do I cancel my Plus subscription?", a:"Go to Profile → Subscription → Cancel Subscription. You'll keep Plus access until the end of your billing period." },
+    { q:"How do I delete my account?", a:"Go to Settings → Delete Account. This permanently removes all your data and cannot be undone." },
+    { q:"I found a bug — how do I report it?", a:"Go to Settings → Send Feedback and describe what happened. We read every report and fix bugs fast." },
+  ];
+  return (
+    <div style={{ flex:1, overflowY:"auto", background:T.black }}>
+      <div style={{ background:T.offBlack, padding:"52px 28px 24px", borderBottom:`1px solid ${T.border}` }}>
+        <button onClick={()=>setScreen("settings")} style={{ background:"none", border:"none", color:T.muted, fontSize:11, cursor:"pointer", marginBottom:14, padding:0, fontFamily:F.body, letterSpacing:"0.08em" }}>← SETTINGS</button>
+        <div style={{ fontFamily:F.display, fontSize:34, color:T.white, lineHeight:0.92 }}>HELP</div>
+        <div style={{ fontFamily:F.serif, fontSize:36, fontStyle:"italic", color:T.accent }}>center.</div>
+      </div>
+      <div style={{ padding:"14px 28px 48px", display:"flex", flexDirection:"column", gap:2 }}>
+        {faqs.map((f,i)=>(
+          <div key={i} onClick={()=>setOpen(open===i?null:i)} style={{ background:T.card, border:`1px solid ${open===i?T.accent:T.border}`, padding:"16px 18px", cursor:"pointer" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ fontSize:13, fontFamily:F.body, color:open===i?T.accent:T.white, fontWeight:500, flex:1, paddingRight:12 }}>{f.q}</div>
+              <span style={{ color:T.muted, fontSize:14, flexShrink:0 }}>{open===i?"−":"+"}</span>
+            </div>
+            {open===i && <div style={{ fontSize:12, color:T.muted, fontFamily:F.body, lineHeight:1.7, marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}` }}>{f.a}</div>}
+          </div>
+        ))}
+        <div style={{ background:T.card, border:`1px solid ${T.border}`, padding:"18px", marginTop:8 }}>
+          <div style={{ fontSize:12, color:T.muted, fontFamily:F.body, lineHeight:1.6, marginBottom:12 }}>Still need help? Send us a message and we'll get back to you within 24 hours.</div>
+          <Btn onClick={()=>setScreen("sendFeedback")} style={{ padding:"11px", fontSize:12 }}>Contact Support →</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   SEND FEEDBACK
+══════════════════════════════════════ */
+function SendFeedbackScreen({ setScreen }) {
+  const { user } = useAuth();
+  const [type, setType]       = useState("feedback");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent]       = useState(false);
+
+  async function submit() {
+    if (!message.trim()) return;
+    setSending(true);
+    try {
+      if (IS_LIVE && _sb) {
+        await _sb.from("feedback").insert({ user_id: user?.id||null, type, message, created_at: new Date().toISOString() }).catch(()=>{});
+      }
+      setSent(true);
+    } finally { setSending(false); }
+  }
+
+  if (sent) return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", background:T.black }}>
+      <div style={{ background:T.offBlack, padding:"52px 28px 24px", borderBottom:`1px solid ${T.border}` }}>
+        <button onClick={()=>setScreen("settings")} style={{ background:"none", border:"none", color:T.muted, fontSize:11, cursor:"pointer", marginBottom:14, padding:0, fontFamily:F.body, letterSpacing:"0.08em" }}>← SETTINGS</button>
+      </div>
+      <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"28px" }}>
+        <div style={{ fontSize:48, marginBottom:16 }}>✓</div>
+        <div style={{ fontFamily:F.display, fontSize:24, color:T.accent, letterSpacing:"0.04em", marginBottom:8 }}>THANK YOU!</div>
+        <div style={{ fontSize:13, color:T.muted, fontFamily:F.body, textAlign:"center", lineHeight:1.6, marginBottom:28 }}>We read every message and will get back to you within 24 hours.</div>
+        <Btn onClick={()=>setScreen("settings")} style={{ width:"auto", padding:"12px 28px" }}>Back to Settings</Btn>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", background:T.black, overflow:"hidden" }}>
+      <div style={{ background:T.offBlack, padding:"52px 28px 24px", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
+        <button onClick={()=>setScreen("settings")} style={{ background:"none", border:"none", color:T.muted, fontSize:11, cursor:"pointer", marginBottom:14, padding:0, fontFamily:F.body, letterSpacing:"0.08em" }}>← SETTINGS</button>
+        <div style={{ fontFamily:F.display, fontSize:34, color:T.white, lineHeight:0.92 }}>SEND</div>
+        <div style={{ fontFamily:F.serif, fontSize:36, fontStyle:"italic", color:T.accent }}>feedback.</div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:"20px 28px 48px", display:"flex", flexDirection:"column", gap:18 }}>
+        <div>
+          <div style={{ fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:T.muted, fontFamily:F.body, marginBottom:10 }}>Type</div>
+          <div style={{ display:"flex", gap:2 }}>
+            {[["feedback","💬 Feedback"],["bug","🐛 Bug Report"],["feature","✨ Feature Request"]].map(([val,label])=>(
+              <div key={val} onClick={()=>setType(val)} style={{ flex:1, padding:"10px 8px", textAlign:"center", border:`1px solid ${type===val?T.accent:T.border}`, background:type===val?"rgba(232,255,71,0.06)":"none", cursor:"pointer" }}>
+                <div style={{ fontSize:10, fontFamily:F.body, color:type===val?T.accent:T.muted }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label style={{ fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:T.muted, display:"block", marginBottom:8, fontFamily:F.body }}>Message</label>
+          <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder={type==="bug"?"Describe what happened and how to reproduce it…":type==="feature"?"What feature would you like to see?…":"Tell us what you think…"} style={{ width:"100%", minHeight:140, padding:"13px 16px", background:"#111", border:`1px solid ${T.border}`, color:T.white, fontSize:13, fontFamily:F.body, borderRadius:2, boxSizing:"border-box", outline:"none", resize:"none", lineHeight:1.6 }} />
+          <div style={{ fontSize:10, color:T.muted, textAlign:"right", marginTop:4, fontFamily:F.body }}>{message.length} chars</div>
+        </div>
+        <Btn onClick={submit} disabled={!message.trim()||sending}>{sending?"Sending…":"Send →"}</Btn>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   TERMS OF SERVICE
+══════════════════════════════════════ */
+function TermsScreen({ setScreen }) {
+  return (
+    <div style={{ flex:1, overflowY:"auto", background:T.black }}>
+      <div style={{ background:T.offBlack, padding:"52px 28px 24px", borderBottom:`1px solid ${T.border}` }}>
+        <button onClick={()=>setScreen("settings")} style={{ background:"none", border:"none", color:T.muted, fontSize:11, cursor:"pointer", marginBottom:14, padding:0, fontFamily:F.body, letterSpacing:"0.08em" }}>← SETTINGS</button>
+        <div style={{ fontFamily:F.display, fontSize:34, color:T.white, lineHeight:0.92 }}>TERMS OF</div>
+        <div style={{ fontFamily:F.serif, fontSize:36, fontStyle:"italic", color:T.accent }}>service.</div>
+      </div>
+      <div style={{ padding:"24px 28px 48px", display:"flex", flexDirection:"column", gap:20 }}>
+        {[
+          { title:"1. Acceptance of Terms", body:"By accessing or using FounderMatch, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the service." },
+          { title:"2. Eligibility", body:"You must be at least 18 years old to use FounderMatch. By using the service, you represent that you meet this requirement and that all information you provide is accurate." },
+          { title:"3. User Accounts", body:"You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. Notify us immediately of any unauthorized use." },
+          { title:"4. Acceptable Use", body:"You agree not to misuse FounderMatch. This includes not posting false information, harassing other users, attempting to scrape data, or using the platform for any illegal purpose." },
+          { title:"5. Content", body:"You retain ownership of content you post. By posting, you grant FounderMatch a non-exclusive license to use, display, and distribute that content on the platform." },
+          { title:"6. Subscriptions & Payments", body:"Plus subscriptions are billed monthly. Cancellations take effect at the end of the current billing period. No refunds are provided for partial months." },
+          { title:"7. Termination", body:"We reserve the right to suspend or terminate accounts that violate these terms. You may delete your account at any time from the Settings screen." },
+          { title:"8. Disclaimer", body:"FounderMatch is provided 'as is' without warranty of any kind. We do not guarantee that you will find a cofounder or that any match will be successful." },
+          { title:"9. Changes", body:"We may update these terms from time to time. Continued use of the service after changes constitutes acceptance of the new terms." },
+          { title:"10. Contact", body:"For questions about these terms, contact us via the Send Feedback screen in the app." },
+        ].map(s=>(
+          <div key={s.title}>
+            <div style={{ fontFamily:F.display, fontSize:13, color:T.accent, letterSpacing:"0.04em", marginBottom:6 }}>{s.title.toUpperCase()}</div>
+            <div style={{ fontSize:12, color:T.muted, fontFamily:F.body, lineHeight:1.8 }}>{s.body}</div>
+          </div>
+        ))}
+        <div style={{ fontSize:11, color:"#444", fontFamily:F.body, marginTop:8 }}>Last updated: March 2026</div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
+   PRIVACY POLICY
+══════════════════════════════════════ */
+function PrivacyScreen({ setScreen }) {
+  return (
+    <div style={{ flex:1, overflowY:"auto", background:T.black }}>
+      <div style={{ background:T.offBlack, padding:"52px 28px 24px", borderBottom:`1px solid ${T.border}` }}>
+        <button onClick={()=>setScreen("settings")} style={{ background:"none", border:"none", color:T.muted, fontSize:11, cursor:"pointer", marginBottom:14, padding:0, fontFamily:F.body, letterSpacing:"0.08em" }}>← SETTINGS</button>
+        <div style={{ fontFamily:F.display, fontSize:34, color:T.white, lineHeight:0.92 }}>PRIVACY</div>
+        <div style={{ fontFamily:F.serif, fontSize:36, fontStyle:"italic", color:T.accent }}>policy.</div>
+      </div>
+      <div style={{ padding:"24px 28px 48px", display:"flex", flexDirection:"column", gap:20 }}>
+        {[
+          { title:"What We Collect", body:"We collect information you provide when creating your account — name, email, professional background, skills, and interests. We also collect usage data to improve the product." },
+          { title:"How We Use It", body:"Your profile data is used to match you with compatible founders. Your email is used for account management and notifications (which you can turn off in Settings)." },
+          { title:"What We Share", body:"Your profile is visible to other FounderMatch users according to your privacy settings. We never sell your personal data to third parties." },
+          { title:"Data Storage", body:"Your data is stored securely on Supabase infrastructure with encryption at rest and in transit. We retain your data until you delete your account." },
+          { title:"Your Rights", body:"You can export your data at any time from Settings → Download My Data. You can delete your account and all associated data from Settings → Delete Account." },
+          { title:"Cookies", body:"We use essential cookies to keep you logged in. We do not use tracking or advertising cookies." },
+          { title:"Third-Party Services", body:"We use Supabase for database and authentication, and Stripe for payments. These services have their own privacy policies." },
+          { title:"Children's Privacy", body:"FounderMatch is not intended for users under 18. We do not knowingly collect data from minors." },
+          { title:"Changes", body:"We may update this policy and will notify you of significant changes via email." },
+          { title:"Contact", body:"Questions about privacy? Reach us via the Send Feedback screen in the app." },
+        ].map(s=>(
+          <div key={s.title}>
+            <div style={{ fontFamily:F.display, fontSize:13, color:T.accent, letterSpacing:"0.04em", marginBottom:6 }}>{s.title.toUpperCase()}</div>
+            <div style={{ fontSize:12, color:T.muted, fontFamily:F.body, lineHeight:1.8 }}>{s.body}</div>
+          </div>
+        ))}
+        <div style={{ fontSize:11, color:"#444", fontFamily:F.body, marginTop:8 }}>Last updated: March 2026</div>
       </div>
     </div>
   );
@@ -1860,7 +2062,7 @@ export default function FounderMatch() {
 
   const AUTH_SCREENS  = ["landing","signup","login","questionnaire"];
   const showNav       = !AUTH_SCREENS.includes(screen);
-  const NO_TABS = ["founderProfile","founderTeam","settings","editProfile","subscription"];
+  const NO_TABS = ["founderProfile","founderTeam","settings","editProfile","subscription","blockedUsers","helpCenter","sendFeedback","terms","privacy"];
   const showTabs      = showNav && !NO_TABS.includes(screen);
 
   const ctx = { api, user, setUser, isPaid, setIsPaid };
@@ -1882,6 +2084,11 @@ export default function FounderMatch() {
       case "editProfile":    return <EditProfileScreen setScreen={setScreen} />;
       case "subscription":   return <SubscriptionScreen setScreen={setScreen} />;
       case "settings":       return <SettingsScreen setScreen={setScreen} />;
+      case "blockedUsers":   return <BlockedUsersScreen setScreen={setScreen} />;
+      case "helpCenter":     return <HelpCenterScreen setScreen={setScreen} />;
+      case "sendFeedback":   return <SendFeedbackScreen setScreen={setScreen} />;
+      case "terms":          return <TermsScreen setScreen={setScreen} />;
+      case "privacy":        return <PrivacyScreen setScreen={setScreen} />;
       default:               return <HomeScreen setScreen={setScreen} />;
     }
   };
