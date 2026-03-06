@@ -1567,7 +1567,34 @@ function ProfileScreen({ setScreen }) {
    SUBSCRIPTION SCREEN
 ══════════════════════════════════════ */
 function SubscriptionScreen({ setScreen }) {
-  const { isPaid, setIsPaid } = useAuth();
+  const { user, isPaid, setIsPaid } = useAuth();
+  const [loading, setLoading] = useState(null); // "monthly"|"annual"
+  const [err, setErr]         = useState("");
+
+  async function checkout(plan) {
+    if (!user) return;
+    setLoading(plan); setErr("");
+    try {
+      const priceId = plan === "monthly"
+        ? import.meta.env.VITE_STRIPE_MONTHLY_PRICE_ID
+        : import.meta.env.VITE_STRIPE_ANNUAL_PRICE_ID;
+      const res  = await fetch("/api/create-checkout", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ priceId, userId: user.id, email: user.email }),
+      });
+      const data = await res.json();
+      if (data.url) { window.location.href = data.url; }
+      else throw new Error(data.error || "Failed to create checkout");
+    } catch(e) { setErr(e.message); setLoading(null); }
+  }
+
+  async function cancelSub() {
+    // For now just toggle — full cancel via Stripe portal coming soon
+    setIsPaid(false);
+    if (_sb) await _sb.from("profiles").update({ subscription_status:"free" }).eq("id", user.id);
+  }
+
   return (
     <div style={{ flex:1, overflowY:"auto", background:T.black }}>
       <div style={{ background:T.offBlack, padding:"52px 28px 24px", borderBottom:`1px solid ${T.border}` }}>
@@ -1576,6 +1603,8 @@ function SubscriptionScreen({ setScreen }) {
         <div style={{ fontFamily:F.serif, fontSize:36, fontStyle:"italic", color:T.accent }}>plan.</div>
       </div>
       <div style={{ padding:"20px 28px 48px", display:"flex", flexDirection:"column", gap:12 }}>
+        {err && <div style={{ padding:"12px 16px", background:"rgba(255,95,95,0.08)", border:`1px solid ${T.danger}`, fontSize:12, color:T.danger, fontFamily:F.body, borderRadius:2 }}>{err}</div>}
+
         {/* Free plan */}
         <div style={{ background:T.card, border:`1px solid ${!isPaid?T.accent:T.border}`, padding:"20px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
@@ -1587,25 +1616,34 @@ function SubscriptionScreen({ setScreen }) {
             <div key={f} style={{ display:"flex", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.border}`, fontSize:12, color:T.muted, fontFamily:F.body }}><span style={{ color:T.border }}>→</span>{f}</div>
           ))}
         </div>
+
         {/* Plus plan */}
         <div style={{ background:T.card, border:`1px solid ${isPaid?T.accent:T.border}`, padding:"20px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
             <div style={{ fontFamily:F.display, fontSize:18, color:isPaid?T.accent:T.white, letterSpacing:"0.04em" }}>PLUS</div>
             {isPaid && <Tag label="ACTIVE" highlight />}
           </div>
-          <div style={{ fontSize:24, fontFamily:F.display, color:T.white, marginBottom:12 }}>$12<span style={{ fontSize:12, color:T.muted, fontFamily:F.body }}>/mo</span></div>
           {["Full profile bios & match scores","Unlimited connections","Unlimited messaging","Full idea marketplace","See who viewed your profile","Priority in search results"].map(f=>(
             <div key={f} style={{ display:"flex", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.border}`, fontSize:12, color:T.white, fontFamily:F.body }}><span style={{ color:T.accent }}>→</span>{f}</div>
           ))}
-          <div style={{ marginTop:16 }}>
-            {isPaid
-              ? <button onClick={()=>setIsPaid(false)} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.danger}`, color:T.danger, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:F.body, borderRadius:2, letterSpacing:"0.06em" }}>CANCEL SUBSCRIPTION</button>
-              : <Btn onClick={()=>setIsPaid(true)}>Upgrade to Plus · $12/mo →</Btn>
-            }
-          </div>
+          {isPaid ? (
+            <div style={{ marginTop:16 }}>
+              <button onClick={cancelSub} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.danger}`, color:T.danger, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:F.body, borderRadius:2, letterSpacing:"0.06em" }}>CANCEL SUBSCRIPTION</button>
+            </div>
+          ) : (
+            <div style={{ marginTop:16, display:"flex", flexDirection:"column", gap:8 }}>
+              <button onClick={()=>checkout("monthly")} disabled={!!loading} style={{ width:"100%", padding:"14px", background:T.accent, border:"none", color:T.black, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:F.body, borderRadius:2, letterSpacing:"0.04em" }}>
+                {loading==="monthly" ? "Redirecting…" : "Monthly · $20/mo →"}
+              </button>
+              <button onClick={()=>checkout("annual")} disabled={!!loading} style={{ width:"100%", padding:"14px", background:"none", border:`1px solid ${T.accent}`, color:T.accent, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:F.body, borderRadius:2, letterSpacing:"0.04em" }}>
+                {loading==="annual" ? "Redirecting…" : "Annual · $200/yr — Save $40 →"}
+              </button>
+            </div>
+          )}
         </div>
+
         <div style={{ background:T.card, border:`1px solid ${T.border}`, padding:"16px" }}>
-          <div style={{ fontSize:11, color:T.muted, fontFamily:F.body, lineHeight:1.7, textAlign:"center" }}>Stripe payments coming soon. Upgrading here toggles Plus mode for demo purposes.</div>
+          <div style={{ fontSize:11, color:T.muted, fontFamily:F.body, lineHeight:1.7, textAlign:"center" }}>Secured by Stripe. Cancel anytime. No refunds for partial months.</div>
         </div>
       </div>
     </div>
@@ -2010,12 +2048,27 @@ export default function FounderMatch() {
         return;
       }
       try {
+        // Check for Stripe checkout success
+        const params = new URLSearchParams(window.location.search);
+        const checkoutStatus = params.get("checkout");
+        if (checkoutStatus === "success") {
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+
         const { data:{ session } } = await _sb.auth.getSession();
         if (session?.user) {
-          const profile = await api.profiles.get(session.user.id);
-          setUser(profile);
-          setIsPaid(profile.subscription_status === "plus");
-          setScreen(profile.onboarding_done ? "home" : "questionnaire");
+          const { data:profile } = await _sb.from("profiles").select("*").eq("id", session.user.id).single();
+          const { data:sk }  = await _sb.from("profile_skills").select("skills(name)").eq("profile_id", session.user.id);
+          const { data:inr } = await _sb.from("profile_interests").select("interests(name)").eq("profile_id", session.user.id);
+          const fullProfile  = { ...(profile||{}), skills:(sk||[]).map(s=>s.skills?.name).filter(Boolean), interests:(inr||[]).map(i=>i.interests?.name).filter(Boolean) };
+          setUser(fullProfile);
+          setIsPaid(profile?.subscription_status === "plus");
+          if (checkoutStatus === "success") {
+            setIsPaid(true);
+            setScreen("subscription");
+          } else {
+            setScreen(profile?.onboarding_done ? "home" : "questionnaire");
+          }
         } else {
           setScreen("landing");
         }
