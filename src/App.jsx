@@ -2050,11 +2050,19 @@ export default function FounderMatch() {
     const hardTimeout = setTimeout(() => setScreen(s => s === "loading" ? "landing" : s), 4000);
 
     async function boot() {
-      // Clear any invalid auth tokens before starting
-       const checkoutParam = new URLSearchParams(window.location.search).get("checkout");
-      if (checkoutParam !== "success") {
-        try { localStorage.removeItem("fm-auth"); } catch(e) {}
-      }
+      // Check for Stripe checkout success
+      const checkoutParam = new URLSearchParams(window.location.search).get("checkout");
+      
+      // Only clear if token is expired
+      try {
+        const stored = localStorage.getItem("fm-auth");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.expires_at && parsed.expires_at * 1000 < Date.now()) {
+            localStorage.removeItem("fm-auth");
+          }
+        }
+      } catch(e) { localStorage.removeItem("fm-auth"); }
       try {
         const params = new URLSearchParams(window.location.search);
         const checkoutStatus = params.get("checkout");
