@@ -14,8 +14,8 @@ const F = { display:"'Bebas Neue',sans-serif", serif:"'Instrument Serif',serif",
 /* ══════════════════════════════════════
    SUPABASE CLIENT
 ══════════════════════════════════════ */
-const SUPABASE_URL = "https://vepqolhwtjdyyhznhfyi.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlcHFvbGh3dGpkeXloem5oZnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NDI2NjMsImV4cCI6MjA4ODMxODY2M30.ncZpsym86t55Io2QNq087KsSC_U4a9vCk1PJCLnalb4";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 const IS_LIVE = !!(SUPABASE_URL && SUPABASE_KEY);
 const _sb = IS_LIVE ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth:{ persistSession:true } }) : null;
 
@@ -1367,23 +1367,116 @@ function FounderTeamScreen({ setScreen, ideaId }) {
 }
 
 /* ══════════════════════════════════════
+   EDIT PROFILE SCREEN
+══════════════════════════════════════ */
+function EditProfileScreen({ setScreen }) {
+  const { api, user, setUser } = useAuth();
+  const [name, setName]         = useState(user?.name||"");
+  const [bio, setBio]           = useState(user?.bio||"");
+  const [location, setLocation] = useState(user?.location||"");
+  const [timezone, setTimezone] = useState(user?.timezone||"PST");
+  const [ideaStatus, setIdeaStatus] = useState(user?.idea_status||"");
+  const [lookingFor, setLookingFor] = useState(user?.looking_for||[]);
+  const [skills, setSkills]     = useState(user?.skills||[]);
+  const [interests, setInterests] = useState(user?.interests||[]);
+  const [linkedinUrl, setLinkedinUrl] = useState(user?.linkedin_url||"");
+  const [saving, setSaving]     = useState(false);
+  const [toast, setToast]       = useState("");
+  const toggleArr = (arr, setArr, val) => setArr(prev => prev.includes(val) ? prev.filter(v=>v!==val) : [...prev, val]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.profiles.update(user.id, { name, bio, location, timezone, idea_status:ideaStatus, looking_for:lookingFor, linkedin_url:linkedinUrl });
+      if (IS_LIVE && _sb) {
+        // update skills
+        const { data:sk } = await _sb.from("skills").select("id,name").in("name", skills);
+        await _sb.from("profile_skills").delete().eq("profile_id", user.id);
+        if (sk?.length) await _sb.from("profile_skills").insert(sk.map(s=>({ profile_id:user.id, skill_id:s.id })));
+        // update interests
+        const { data:inr } = await _sb.from("interests").select("id,name").in("name", interests);
+        await _sb.from("profile_interests").delete().eq("profile_id", user.id);
+        if (inr?.length) await _sb.from("profile_interests").insert(inr.map(i=>({ profile_id:user.id, interest_id:i.id })));
+      }
+      const updated = await api.profiles.get(user.id);
+      setUser({ ...updated, skills, interests });
+      setToast("Profile saved!"); setTimeout(()=>setToast(""),2500);
+    } catch(e) { setToast("Error: " + e.message); setTimeout(()=>setToast(""),3000); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", background:T.black, overflow:"hidden" }}>
+      <Toast msg={toast} />
+      <div style={{ background:T.offBlack, padding:"52px 28px 20px", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
+        <button onClick={()=>setScreen("profile")} style={{ background:"none", border:"none", color:T.muted, fontSize:11, cursor:"pointer", marginBottom:14, padding:0, fontFamily:F.body, letterSpacing:"0.08em" }}>← PROFILE</button>
+        <div style={{ fontFamily:F.display, fontSize:34, color:T.white, lineHeight:0.92 }}>EDIT</div>
+        <div style={{ fontFamily:F.serif, fontSize:36, fontStyle:"italic", color:T.accent }}>profile.</div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:"18px 28px 32px", display:"flex", flexDirection:"column", gap:18 }}>
+        <Inp label="Full Name" value={name} onChange={e=>setName(e.target.value)} placeholder="Your full name" />
+        <div>
+          <label style={{ fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:T.muted, display:"block", marginBottom:8, fontFamily:F.body }}>Bio (max 300 chars)</label>
+          <textarea value={bio} onChange={e=>setBio(e.target.value.slice(0,300))} placeholder="What are you building and what do you need in a cofounder?" style={{ width:"100%", minHeight:90, padding:"13px 16px", background:"#111", border:`1px solid ${T.border}`, color:T.white, fontSize:13, fontFamily:F.body, borderRadius:2, boxSizing:"border-box", outline:"none", resize:"none", lineHeight:1.6 }} />
+          <div style={{ fontSize:10, color:T.muted, textAlign:"right", marginTop:4, fontFamily:F.body }}>{bio.length}/300</div>
+        </div>
+        <Inp label="Location" value={location} onChange={e=>setLocation(e.target.value)} placeholder="San Francisco, US" />
+        <div>
+          <div style={{ fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:T.muted, fontFamily:F.body, marginBottom:10 }}>Timezone</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+            {["PST","MST","CST","EST","GMT","CET","IST","SGT","JST","AEST"].map(tz=>(
+              <div key={tz} onClick={()=>setTimezone(tz)} style={{ padding:"8px 14px", border:`1px solid ${timezone===tz?T.accent:T.border}`, background:timezone===tz?"rgba(232,255,71,0.07)":"none", cursor:"pointer", borderRadius:2 }}>
+                <span style={{ fontSize:11, fontFamily:F.body, color:timezone===tz?T.accent:T.muted }}>{tz}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:T.muted, fontFamily:F.body, marginBottom:10 }}>Idea Status</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+            {IDEA_STATUSES.map(s=>(
+              <div key={s} onClick={()=>setIdeaStatus(s)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"13px 16px", background:ideaStatus===s?"rgba(232,255,71,0.06)":T.card, border:`1px solid ${ideaStatus===s?T.accent:T.border}`, cursor:"pointer" }}>
+                <span style={{ fontSize:13, fontFamily:F.body, color:ideaStatus===s?T.accent:T.white }}>{s}</span>
+                {ideaStatus===s && <span style={{ color:T.accent }}>✓</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:T.muted, fontFamily:F.body, marginBottom:10 }}>Looking For</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+            {LOOKING_FOR.map(l=><Tag key={l} label={l} active={lookingFor.includes(l)} onClick={()=>toggleArr(lookingFor,setLookingFor,l)} />)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:T.muted, fontFamily:F.body, marginBottom:10 }}>Skills</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+            {ALL_SKILLS.map(s=><Tag key={s} label={s} active={skills.includes(s)} onClick={()=>toggleArr(skills,setSkills,s)} />)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:T.muted, fontFamily:F.body, marginBottom:10 }}>Startup Interests</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+            {ALL_INTERESTS.map(i=><Tag key={i} label={i} active={interests.includes(i)} highlight={interests.includes(i)} onClick={()=>toggleArr(interests,setInterests,i)} />)}
+          </div>
+        </div>
+        <Inp label="LinkedIn URL" value={linkedinUrl} onChange={e=>setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/..." />
+        <Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Changes →"}</Btn>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
    PROFILE
 ══════════════════════════════════════ */
 function ProfileScreen({ setScreen }) {
   const { api, user, setUser, isPaid, setIsPaid } = useAuth();
   const [viewers, setViewers] = useState([]);
-  const [loading, setLoading] = useState(false);
 
   useEffect(()=>{
     if (user && isPaid) api.profiles.getViewers(user.id).then(setViewers).catch(()=>{});
   },[user, isPaid]);
-
-  async function saveField(field, value) {
-    if (!user) return;
-    await api.profiles.update(user.id, { [field]:value });
-    const updated = await api.profiles.get(user.id);
-    setUser(updated);
-  }
 
   const strength = user?.profile_strength || 0;
 
@@ -1397,7 +1490,7 @@ function ProfileScreen({ setScreen }) {
             <div style={{ fontSize:11, color:T.muted, fontFamily:F.body, marginTop:5 }}>{user?.role} · {user?.location} · {user?.timezone}</div>
             <div style={{ marginTop:10 }}>
               {isPaid ? <Tag label="⭐ PLUS MEMBER" highlight />
-                      : <button onClick={()=>setIsPaid(true)} style={{ background:T.accent, color:T.black, border:"none", padding:"6px 12px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:F.body, letterSpacing:"0.07em", borderRadius:2 }}>UPGRADE TO PLUS →</button>}
+                      : <button onClick={()=>setScreen("subscription")} style={{ background:T.accent, color:T.black, border:"none", padding:"6px 12px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:F.body, letterSpacing:"0.07em", borderRadius:2 }}>UPGRADE TO PLUS →</button>}
             </div>
           </div>
         </div>
@@ -1409,25 +1502,27 @@ function ProfileScreen({ setScreen }) {
           <div style={{ height:2, background:T.border, borderRadius:1 }}><div style={{ width:`${strength}%`, height:"100%", background:T.accent, borderRadius:1, transition:"width 0.5s" }} /></div>
         </div>
       </div>
-
       <div style={{ padding:"14px 28px 48px", display:"flex", flexDirection:"column", gap:2 }}>
+        <div style={{ background:T.card, border:`1px solid ${T.border}`, padding:"18px" }}>
+          <SectionLabel>About</SectionLabel>
+          <p style={{ margin:0, fontSize:13, color:T.muted, lineHeight:1.7, fontFamily:F.body }}>{user?.bio||"No bio yet. Tap Edit Profile to add one."}</p>
+        </div>
         <div style={{ background:T.card, border:`1px solid ${T.border}`, padding:"18px" }}>
           <SectionLabel>My Skills</SectionLabel>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-            {(user?.skills||[]).map(s=><Tag key={s} label={s} />)}
-            <button style={{ border:`1px dashed ${T.border}`, background:"none", color:T.muted, padding:"5px 10px", fontSize:10, cursor:"pointer", fontFamily:F.body, borderRadius:2 }}>+ Add</button>
+            {(user?.skills||[]).length > 0 ? (user.skills.map(s=><Tag key={s} label={s} />)) : <span style={{ fontSize:12, color:T.muted, fontFamily:F.body }}>No skills added yet.</span>}
           </div>
         </div>
         <div style={{ background:T.card, border:`1px solid ${T.border}`, padding:"18px" }}>
           <SectionLabel>Startup Interests</SectionLabel>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-            {(user?.interests||[]).map(i=><Tag key={i} label={i} highlight />)}
+            {(user?.interests||[]).length > 0 ? (user.interests.map(i=><Tag key={i} label={i} highlight />)) : <span style={{ fontSize:12, color:T.muted, fontFamily:F.body }}>No interests added yet.</span>}
           </div>
         </div>
         <div style={{ background:T.card, border:`1px solid ${T.border}`, padding:"18px" }}>
           <SectionLabel>Looking For</SectionLabel>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-            {(user?.looking_for||[]).map(l=><Tag key={l} label={l} />)}
+            {(user?.looking_for||[]).length > 0 ? (user.looking_for.map(l=><Tag key={l} label={l} />)) : <span style={{ fontSize:12, color:T.muted, fontFamily:F.body }}>Not set.</span>}
           </div>
         </div>
         <div style={{ background:T.card, border:`1px solid ${T.border}`, padding:"18px" }}>
@@ -1439,18 +1534,13 @@ function ProfileScreen({ setScreen }) {
             : <LockRow label="Upgrade to see who viewed you" />
           }
         </div>
-        <div style={{ background:T.card, border:`1px solid ${T.border}`, padding:"18px" }}>
-          <SectionLabel>Stats</SectionLabel>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:2 }}>
-            {[["Profile Views",isPaid?viewers.length:"—"],["Connections","—"],["Messages","—"],["Ideas Joined","—"]].map(([l,v])=>(
-              <div key={l} style={{ padding:"12px", background:T.offBlack, border:`1px solid ${T.border}` }}>
-                <div style={{ fontFamily:F.display, fontSize:22, color:T.accent }}>{v}</div>
-                <div style={{ fontSize:10, color:T.muted, fontFamily:F.body, marginTop:2 }}>{l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {[{label:"Edit Profile",icon:"✎",action:()=>{}},{label:"Settings",icon:"⚙",action:()=>setScreen("settings")},{label:"Subscription",icon:"⭐",action:()=>{}},{label:"Share Profile",icon:"⬆",action:()=>{}},{label:"Sign Out",icon:"←",action:async()=>{ await api.auth.signOut(); window.location.reload(); },danger:true}].map(item=>(
+        {[
+          { label:"Edit Profile",   icon:"✎", action:()=>setScreen("editProfile") },
+          { label:"Settings",       icon:"⚙", action:()=>setScreen("settings")    },
+          { label:"Subscription",   icon:"⭐", action:()=>setScreen("subscription")},
+          { label:"Share Profile",  icon:"⬆", action:()=>{ if(navigator.share) navigator.share({ title:"FounderMatch", url:window.location.href }); } },
+          { label:"Sign Out",       icon:"←", action:async()=>{ await api.auth.signOut(); window.location.reload(); }, danger:true },
+        ].map(item=>(
           <div key={item.label} onClick={item.action} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 18px", background:T.card, border:`1px solid ${T.border}`, cursor:"pointer" }}>
             <div style={{ display:"flex", alignItems:"center", gap:14 }}>
               <span style={{ fontSize:15 }}>{item.icon}</span>
@@ -1465,20 +1555,130 @@ function ProfileScreen({ setScreen }) {
 }
 
 /* ══════════════════════════════════════
+   SUBSCRIPTION SCREEN
+══════════════════════════════════════ */
+function SubscriptionScreen({ setScreen }) {
+  const { isPaid, setIsPaid } = useAuth();
+  return (
+    <div style={{ flex:1, overflowY:"auto", background:T.black }}>
+      <div style={{ background:T.offBlack, padding:"52px 28px 24px", borderBottom:`1px solid ${T.border}` }}>
+        <button onClick={()=>setScreen("profile")} style={{ background:"none", border:"none", color:T.muted, fontSize:11, cursor:"pointer", marginBottom:14, padding:0, fontFamily:F.body, letterSpacing:"0.08em" }}>← PROFILE</button>
+        <div style={{ fontFamily:F.display, fontSize:34, color:T.white, lineHeight:0.92 }}>YOUR</div>
+        <div style={{ fontFamily:F.serif, fontSize:36, fontStyle:"italic", color:T.accent }}>plan.</div>
+      </div>
+      <div style={{ padding:"20px 28px 48px", display:"flex", flexDirection:"column", gap:12 }}>
+        {/* Free plan */}
+        <div style={{ background:T.card, border:`1px solid ${!isPaid?T.accent:T.border}`, padding:"20px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div style={{ fontFamily:F.display, fontSize:18, color:!isPaid?T.accent:T.muted, letterSpacing:"0.04em" }}>FREE</div>
+            {!isPaid && <Tag label="CURRENT" highlight />}
+          </div>
+          <div style={{ fontSize:24, fontFamily:F.display, color:T.white, marginBottom:12 }}>$0<span style={{ fontSize:12, color:T.muted, fontFamily:F.body }}>/mo</span></div>
+          {["Browse founder profiles","Send 3 connection requests/day","Basic messaging","Limited idea access"].map(f=>(
+            <div key={f} style={{ display:"flex", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.border}`, fontSize:12, color:T.muted, fontFamily:F.body }}><span style={{ color:T.border }}>→</span>{f}</div>
+          ))}
+        </div>
+        {/* Plus plan */}
+        <div style={{ background:T.card, border:`1px solid ${isPaid?T.accent:T.border}`, padding:"20px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div style={{ fontFamily:F.display, fontSize:18, color:isPaid?T.accent:T.white, letterSpacing:"0.04em" }}>PLUS</div>
+            {isPaid && <Tag label="ACTIVE" highlight />}
+          </div>
+          <div style={{ fontSize:24, fontFamily:F.display, color:T.white, marginBottom:12 }}>$12<span style={{ fontSize:12, color:T.muted, fontFamily:F.body }}>/mo</span></div>
+          {["Full profile bios & match scores","Unlimited connections","Unlimited messaging","Full idea marketplace","See who viewed your profile","Priority in search results"].map(f=>(
+            <div key={f} style={{ display:"flex", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.border}`, fontSize:12, color:T.white, fontFamily:F.body }}><span style={{ color:T.accent }}>→</span>{f}</div>
+          ))}
+          <div style={{ marginTop:16 }}>
+            {isPaid
+              ? <button onClick={()=>setIsPaid(false)} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.danger}`, color:T.danger, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:F.body, borderRadius:2, letterSpacing:"0.06em" }}>CANCEL SUBSCRIPTION</button>
+              : <Btn onClick={()=>setIsPaid(true)}>Upgrade to Plus · $12/mo →</Btn>
+            }
+          </div>
+        </div>
+        <div style={{ background:T.card, border:`1px solid ${T.border}`, padding:"16px" }}>
+          <div style={{ fontSize:11, color:T.muted, fontFamily:F.body, lineHeight:1.7, textAlign:"center" }}>Stripe payments coming soon. Upgrading here toggles Plus mode for demo purposes.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
    SETTINGS
 ══════════════════════════════════════ */
 function SettingsScreen({ setScreen }) {
   const { api, user, setUser, isPaid, setIsPaid } = useAuth();
-  const [notifs, setNotifs] = useState({ messages:true, matches:true, ideas:false, news:false });
+  const [notifs, setNotifs]   = useState({ messages:true, matches:true, ideas:false, news:false });
   const [privacy, setPrivacy] = useState({ publicProfile:true, showLocation:true, showOnline:true });
-  const [toast, setToast] = useState("");
+  const [toast, setToast]     = useState("");
+  // inline edit state
+  const [editing, setEditing] = useState(null); // "name"|"password"|"timezone"|"location"
+  const [editVal, setEditVal] = useState("");
+  const [editVal2, setEditVal2] = useState(""); // confirm password
+  const [saving, setSaving]   = useState(false);
 
-  async function save(field, value) {
-    if (!user) return;
-    await api.profiles.update(user.id, { [field]:value });
-    const up = await api.profiles.get(user.id); setUser(up);
-    setToast("Saved!"); setTimeout(()=>setToast(""),2000);
+  function startEdit(field, current="") { setEditing(field); setEditVal(current); setEditVal2(""); }
+
+  async function commitEdit() {
+    if (!user || !editing) return;
+    setSaving(true);
+    try {
+      if (editing === "password") {
+        if (editVal.length < 8) { setToast("Password must be at least 8 characters"); setTimeout(()=>setToast(""),3000); setSaving(false); return; }
+        if (editVal !== editVal2) { setToast("Passwords don't match"); setTimeout(()=>setToast(""),3000); setSaving(false); return; }
+        if (IS_LIVE && _sb) {
+          const { error } = await _sb.auth.updateUser({ password: editVal });
+          if (error) throw new Error(error.message);
+        }
+        setToast("Password updated!");
+      } else {
+        const fieldMap = { name:"name", timezone:"timezone", location:"location" };
+        await api.profiles.update(user.id, { [fieldMap[editing]]: editVal });
+        const updated = await api.profiles.get(user.id);
+        setUser({ ...updated, skills: user.skills||[], interests: user.interests||[] });
+        setToast("Saved!");
+      }
+      setEditing(null);
+      setTimeout(()=>setToast(""),2500);
+    } catch(e) { setToast("Error: " + e.message); setTimeout(()=>setToast(""),3000); }
+    finally { setSaving(false); }
   }
+
+  // Inline edit modal
+  const EditModal = () => {
+    if (!editing) return null;
+    return (
+      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:100, display:"flex", alignItems:"flex-end" }}>
+        <div style={{ width:"100%", maxWidth:430, margin:"0 auto", background:T.offBlack, border:`1px solid ${T.border}`, borderRadius:"4px 4px 0 0", padding:"24px 24px 40px" }}>
+          <div style={{ fontFamily:F.display, fontSize:18, color:T.white, letterSpacing:"0.04em", marginBottom:20 }}>
+            {editing==="name"?"CHANGE NAME":editing==="password"?"CHANGE PASSWORD":editing==="timezone"?"CHANGE TIMEZONE":"CHANGE LOCATION"}
+          </div>
+          {editing==="timezone" ? (
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:20 }}>
+              {["PST","MST","CST","EST","GMT","CET","IST","SGT","JST","AEST"].map(tz=>(
+                <div key={tz} onClick={()=>setEditVal(tz)} style={{ padding:"10px 16px", border:`1px solid ${editVal===tz?T.accent:T.border}`, background:editVal===tz?"rgba(232,255,71,0.07)":"none", cursor:"pointer", borderRadius:2 }}>
+                  <span style={{ fontSize:12, fontFamily:F.body, color:editVal===tz?T.accent:T.muted }}>{tz}</span>
+                </div>
+              ))}
+            </div>
+          ) : editing==="password" ? (
+            <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:20 }}>
+              <Inp label="New Password" type="password" placeholder="Min 8 characters" value={editVal} onChange={e=>setEditVal(e.target.value)} />
+              <Inp label="Confirm Password" type="password" placeholder="Repeat new password" value={editVal2} onChange={e=>setEditVal2(e.target.value)} />
+            </div>
+          ) : (
+            <div style={{ marginBottom:20 }}>
+              <Inp label={editing==="name"?"Full Name":"Location (City, Country)"} placeholder={editing==="name"?"Your full name":"San Francisco, US"} value={editVal} onChange={e=>setEditVal(e.target.value)} />
+            </div>
+          )}
+          <div style={{ display:"flex", gap:8 }}>
+            <Btn ghost style={{ flex:1, padding:"12px" }} onClick={()=>setEditing(null)}>Cancel</Btn>
+            <Btn style={{ flex:2, padding:"12px" }} onClick={commitEdit} disabled={saving}>{saving?"Saving…":"Save →"}</Btn>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const Row = ({ label, sub, right, onClick, danger }) => (
     <div onClick={onClick} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 18px", background:T.card, border:`1px solid ${T.border}`, cursor:onClick?"pointer":"default" }}>
@@ -1500,6 +1700,7 @@ function SettingsScreen({ setScreen }) {
   return (
     <div style={{ flex:1, overflowY:"auto", background:T.black }}>
       <Toast msg={toast} />
+      <EditModal />
       <div style={{ background:T.offBlack, padding:"52px 28px 24px", borderBottom:`1px solid ${T.border}` }}>
         <button onClick={()=>setScreen("profile")} style={{ background:"none", border:"none", color:T.muted, fontSize:11, cursor:"pointer", marginBottom:14, padding:0, fontFamily:F.body, letterSpacing:"0.08em" }}>← PROFILE</button>
         <div style={{ fontFamily:F.display, fontSize:34, color:T.white, lineHeight:0.92 }}>APP</div>
@@ -1508,11 +1709,11 @@ function SettingsScreen({ setScreen }) {
 
       <div style={{ padding:"16px 28px 48px", display:"flex", flexDirection:"column", gap:16 }}>
         <Section title="Account">
-          <Row label="Full Name" sub={user?.name||"—"} onClick={()=>{}} />
-          <Row label="Email" sub={user?.email||"—"} onClick={()=>{}} />
-          <Row label="Change Password" sub="Update your password" onClick={()=>{}} />
-          <Row label="Timezone" sub={user?.timezone||"Not set"} onClick={()=>{}} />
-          <Row label="Location" sub={user?.location||"Not set"} onClick={()=>{}} />
+          <Row label="Full Name"       sub={user?.name||"—"}          onClick={()=>startEdit("name", user?.name||"")} />
+          <Row label="Email"           sub={user?.email||"—"}         />
+          <Row label="Change Password" sub="Update your password"     onClick={()=>startEdit("password")} />
+          <Row label="Timezone"        sub={user?.timezone||"Not set"} onClick={()=>startEdit("timezone", user?.timezone||"PST")} />
+          <Row label="Location"        sub={user?.location||"Not set"} onClick={()=>startEdit("location", user?.location||"")} />
         </Section>
 
         <Section title="Subscription">
@@ -1526,20 +1727,10 @@ function SettingsScreen({ setScreen }) {
             </div>
             {isPaid
               ? <div style={{ display:"flex", gap:8 }}>
-                  <Btn ghost style={{ flex:1, padding:"9px", fontSize:11 }}>Manage Plan</Btn>
+                  <Btn ghost style={{ flex:1, padding:"9px", fontSize:11 }} onClick={()=>setScreen("subscription")}>Manage Plan</Btn>
                   <button onClick={()=>setIsPaid(false)} style={{ flex:1, padding:"9px", background:"none", border:`1px solid ${T.danger}`, color:T.danger, fontSize:10, fontWeight:600, cursor:"pointer", fontFamily:F.body, borderRadius:2 }}>CANCEL</button>
                 </div>
-              : <>
-                  <div style={{ marginBottom:12 }}>
-                    {["Full profile views","Match scores","Unlimited messaging","Idea Marketplace","Who viewed you"].map(f=>(
-                      <div key={f} style={{ display:"flex", gap:8, alignItems:"center", padding:"5px 0", borderBottom:`1px solid ${T.border}` }}>
-                        <span style={{ color:T.accent, fontSize:11 }}>→</span>
-                        <span style={{ fontSize:12, color:T.white, fontFamily:F.body }}>{f}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <Btn onClick={()=>setIsPaid(true)} style={{ padding:"11px", fontSize:12 }}>Upgrade to Plus · $12/mo →</Btn>
-                </>
+              : <Btn onClick={()=>setScreen("subscription")} style={{ padding:"11px", fontSize:12 }}>Upgrade to Plus · $12/mo →</Btn>
             }
           </div>
         </Section>
@@ -1601,32 +1792,38 @@ export default function FounderMatch() {
   // ── Boot: check for existing session ────────────────────
   useEffect(()=>{
     async function boot() {
-      if (!IS_LIVE) {
-        setUser({ ...DEMO_USER });
-        setScreen("landing");
-        return;
-      }
-      // Safety timeout — never stay stuck on loading
-      const timeout = setTimeout(() => setScreen("landing"), 5000);
-      try {
-        const { data:{ session } } = await _sb.auth.getSession();
-        if (session?.user) {
-          const { data, error } = await _sb.from("profiles").select("*").eq("id", session.user.id).single();
-          clearTimeout(timeout);
-          if (error || !data) { setScreen("landing"); return; }
-          setUser({ ...data, skills: [], interests: [] });
-          setIsPaid(data.subscription_status === "plus");
-          setScreen(data.onboarding_done ? "home" : "questionnaire");
-        } else {
-          clearTimeout(timeout);
-          setScreen("landing");
-        }
-      } catch(e) {
-        clearTimeout(timeout);
-        console.error("Boot error:", e);
-        setScreen("landing");
-      }
+  if (!IS_LIVE) {
+    setUser({ ...DEMO_USER });
+    setScreen("landing");
+    return;
+  }
+  const timeout = setTimeout(() => setScreen("landing"), 4000);
+  try {
+    const { data:{ session } } = await _sb.auth.getSession();
+    if (session?.user) {
+      const { data, error } = await _sb.from("profiles").select("*").eq("id", session.user.id).single();
+      clearTimeout(timeout);
+      if (error || !data) { setScreen("landing"); return; }
+      // load skills and interests separately
+      const { data:sk } = await _sb.from("profile_skills").select("skills(name)").eq("profile_id", session.user.id);
+      const { data:inr } = await _sb.from("profile_interests").select("interests(name)").eq("profile_id", session.user.id);
+      setUser({
+        ...data,
+        skills: (sk||[]).map(s=>s.skills.name),
+        interests: (inr||[]).map(i=>i.interests.name),
+      });
+      setIsPaid(data.subscription_status === "plus");
+      setScreen(data.onboarding_done ? "home" : "questionnaire");
+    } else {
+      clearTimeout(timeout);
+      setScreen("landing");
     }
+  } catch(e) {
+    clearTimeout(timeout);
+    console.error("Boot error:", e);
+    setScreen("landing");
+  }
+}
     boot();
   }, []);
 
@@ -1665,7 +1862,7 @@ export default function FounderMatch() {
 
   const AUTH_SCREENS  = ["landing","signup","login","questionnaire"];
   const showNav       = !AUTH_SCREENS.includes(screen);
-  const NO_TABS       = ["founderProfile","founderTeam","settings"];
+  const NO_TABS = ["founderProfile","founderTeam","settings","editProfile","subscription"];
   const showTabs      = showNav && !NO_TABS.includes(screen);
 
   const ctx = { api, user, setUser, isPaid, setIsPaid };
@@ -1684,6 +1881,8 @@ export default function FounderMatch() {
       case "marketplace":    return <MarketplaceScreen setScreen={setScreen} setActiveIdeaId={setAIId} />;
       case "founderTeam":    return <FounderTeamScreen setScreen={setScreen} ideaId={activeIdeaId} />;
       case "profile":        return <ProfileScreen setScreen={setScreen} />;
+      case "editProfile":    return <EditProfileScreen setScreen={setScreen} />;
+      case "subscription":   return <SubscriptionScreen setScreen={setScreen} />;
       case "settings":       return <SettingsScreen setScreen={setScreen} />;
       default:               return <HomeScreen setScreen={setScreen} />;
     }
